@@ -1,23 +1,43 @@
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleContexts #-}
+--
+-- A Mandelbrot set generator.
+-- Originally submitted by Simon Marlow as part of Issue #49.
+--
 
-module Main where
+import World
+import Config
 
-import Lib
-import Prelude hiding ( zipWith )
-import Data.Array.Accelerate             as A
-import Data.Array.Accelerate.LLVM.PTX    as A
+import Data.Label
 
-dotp :: Acc (Vector Float) -> Acc (Vector Float) -> Acc (Scalar Float)
-dotp xs ys = fold (+) 0 (zipWith (*) xs ys)
+import Prelude                                                      as P
+import Data.Array.Accelerate.IO.Codec.BMP                           as A
+import Data.Array.Accelerate.Examples.Internal                      as A
+import qualified Graphics.Gloss.Interface.IO.Game                   as G
 
--- | Matrix-vector product
-mvm :: A.Num a => Acc (Matrix a) -> Acc (Vector a) -> Acc (Vector a)
-mvm mat vec =
-  let Z :. rows :. cols = unlift (shape mat) :: Z :. Exp Int :. Exp Int
-      vec'              = A.replicate (lift (Z :. rows :. All)) vec
-  in
-  A.fold (+) 0 ( A.zipWith (*) mat vec' )
+
+-- Main ------------------------------------------------------------------------
 
 main :: IO ()
-main = someFunc
+main = do
+  beginMonitoring
+  (conf, opts, rest)    <- parseArgs options defaults header footer
+
+  let world     = initialWorld conf opts
+      bmp       = get configFilePath conf
+      width     = get configWidth conf
+      height    = get configHeight conf
+
+  runBenchmarks opts rest
+    [ bench "mandelbrot" $ whnf renderWorld world ]
+
+  case bmp of
+    Just path   -> writeImageToBMP path (renderWorld world)
+    Nothing     ->
+      runInteractive opts rest $
+        G.playIO (G.InWindow "Mandelbrot" (width,height) (10,10))
+                 G.black
+                 60
+                 (updateWorld world)
+                 draw
+                 (react conf opts)
+                 advance
+

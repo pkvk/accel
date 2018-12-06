@@ -7,6 +7,7 @@
 3. Install LLVM
 
     $ sudo apt install llvm-6.0-dev
+
 4. Export LLVM/CUDA paths
 
     $ export PATH=/usr/lib/llvm-6.0/bin:$PATH
